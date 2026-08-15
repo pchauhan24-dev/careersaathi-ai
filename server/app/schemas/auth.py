@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import (
@@ -37,6 +38,19 @@ class UserRegister(BaseModel):
         return str(value).lower()
 
 
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str = Field(
+        min_length=1,
+        max_length=128,
+    )
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: EmailStr) -> str:
+        return str(value).lower()
+
+
 class UserResponse(BaseModel):
     id: UUID
     full_name: str
@@ -49,7 +63,20 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AccessTokenData(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_in: int
+    user: UserResponse
+
+
 class RegisterResponse(BaseModel):
     success: bool
     message: str
     data: UserResponse
+
+
+class LoginResponse(BaseModel):
+    success: bool
+    message: str
+    data: AccessTokenData
