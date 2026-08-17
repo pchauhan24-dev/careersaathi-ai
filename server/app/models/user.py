@@ -1,10 +1,14 @@
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, String, Uuid, false, true
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.mixins import TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.auth_session import AuthSession
 
 
 class User(TimestampMixin, Base):
@@ -44,4 +48,10 @@ class User(TimestampMixin, Base):
         nullable=False,
         default=False,
         server_default=false(),
+    )
+
+    auth_sessions: Mapped[list["AuthSession"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )

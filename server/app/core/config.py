@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     jwt_secret_key: SecretStr
     jwt_algorithm: Literal["HS256"] = "HS256"
     access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
 
     postgres_user: str
     postgres_password: SecretStr
