@@ -80,3 +80,8 @@ class LoginResponse(BaseModel):
     success: bool
     message: str
     data: AccessTokenData
+
+
+class LogoutResponse(BaseModel):
+    success: bool
+    message: str
