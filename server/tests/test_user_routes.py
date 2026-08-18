@@ -17,11 +17,28 @@ REGISTRATION_DATA = {
 
 def register_and_login(
     client: TestClient,
+    db_session: Session,
 ) -> tuple[dict, str]:
     registration_response = client.post(
         "/api/v1/auth/register",
         json=REGISTRATION_DATA,
     )
+
+    assert registration_response.status_code == status.HTTP_201_CREATED
+
+    user_data = registration_response.json()["data"]
+
+    user = db_session.get(
+        User,
+        UUID(user_data["id"]),
+    )
+
+    assert user is not None
+
+    user.is_verified = True
+    db_session.commit()
+    db_session.refresh(user)
+
     login_response = client.post(
         "/api/v1/auth/login",
         json={
@@ -30,10 +47,8 @@ def register_and_login(
         },
     )
 
-    assert registration_response.status_code == status.HTTP_201_CREATED
     assert login_response.status_code == status.HTTP_200_OK
 
-    user_data = registration_response.json()["data"]
     access_token = login_response.json()["data"]["access_token"]
 
     return user_data, access_token
@@ -41,8 +56,12 @@ def register_and_login(
 
 def test_get_current_user(
     client: TestClient,
+    db_session: Session,
 ) -> None:
-    user_data, access_token = register_and_login(client)
+    user_data, access_token = register_and_login(
+        client,
+        db_session,
+    )
 
     response = client.get(
         "/api/v1/users/me",
@@ -81,8 +100,12 @@ def test_get_current_user_rejects_invalid_token(
 
 def test_get_current_user_rejects_expired_token(
     client: TestClient,
+    db_session: Session,
 ) -> None:
-    user_data, _ = register_and_login(client)
+    user_data, _ = register_and_login(
+        client,
+        db_session,
+    )
 
     expired_token = create_access_token(
         user_data["id"],
@@ -114,7 +137,10 @@ def test_get_current_user_rejects_inactive_user(
     client: TestClient,
     db_session: Session,
 ) -> None:
-    user_data, access_token = register_and_login(client)
+    user_data, access_token = register_and_login(
+        client,
+        db_session,
+    )
 
     user = db_session.get(
         User,

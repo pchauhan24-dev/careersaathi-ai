@@ -1,31 +1,54 @@
 from fastapi import status
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import decode_access_token
+from app.repositories.user_repository import UserRepository
+
+REGISTRATION_DATA = {
+    "full_name": "Career Saathi",
+    "email": "candidate@example.com",
+    "password": "StrongPassword123!",
+}
+
+LOGIN_DATA = {
+    "email": "candidate@example.com",
+    "password": "StrongPassword123!",
+}
+
+
+def mark_candidate_as_verified(
+    db_session: Session,
+    email: str = "candidate@example.com",
+) -> None:
+    user = UserRepository(db_session).get_by_email(email)
+
+    assert user is not None
+
+    user.is_verified = True
+    db_session.commit()
+    db_session.refresh(user)
 
 
 def test_login_candidate(
     client: TestClient,
+    db_session: Session,
 ) -> None:
     registration_response = client.post(
         "/api/v1/auth/register",
-        json={
-            "full_name": "Career Saathi",
-            "email": "candidate@example.com",
-            "password": "StrongPassword123!",
-        },
-    )
-
-    login_response = client.post(
-        "/api/v1/auth/login",
-        json={
-            "email": "candidate@example.com",
-            "password": "StrongPassword123!",
-        },
+        json=REGISTRATION_DATA,
     )
 
     assert registration_response.status_code == status.HTTP_201_CREATED
+
+    mark_candidate_as_verified(db_session)
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json=LOGIN_DATA,
+    )
+
     assert login_response.status_code == status.HTTP_200_OK
 
     payload = login_response.json()
@@ -50,6 +73,27 @@ def test_login_candidate(
     assert token_payload["sub"] == registration_response.json()["data"]["id"]
 
 
+def test_login_candidate_rejects_unverified_email(
+    client: TestClient,
+) -> None:
+    registration_response = client.post(
+        "/api/v1/auth/register",
+        json=REGISTRATION_DATA,
+    )
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json=LOGIN_DATA,
+    )
+
+    assert registration_response.status_code == status.HTTP_201_CREATED
+    assert login_response.status_code == status.HTTP_403_FORBIDDEN
+    assert login_response.json()["detail"] == (
+        "Please verify your email before logging in."
+    )
+    assert login_response.cookies.get(settings.refresh_cookie_name) is None
+
+
 def test_login_candidate_rejects_invalid_credentials(
     client: TestClient,
 ) -> None:
@@ -70,11 +114,7 @@ def test_register_candidate(
 ) -> None:
     response = client.post(
         "/api/v1/auth/register",
-        json={
-            "full_name": "Career Saathi",
-            "email": "candidate@example.com",
-            "password": "StrongPassword123!",
-        },
+        json=REGISTRATION_DATA,
     )
 
     assert response.status_code == status.HTTP_201_CREATED
@@ -82,9 +122,12 @@ def test_register_candidate(
     payload = response.json()
 
     assert payload["success"] is True
-    assert payload["message"] == "Account created successfully."
+    assert payload["message"] == (
+        "Account created successfully. Please verify your email."
+    )
     assert payload["data"]["full_name"] == "Career Saathi"
     assert payload["data"]["email"] == "candidate@example.com"
+    assert payload["data"]["is_verified"] is False
     assert "password" not in payload["data"]
     assert "password_hash" not in payload["data"]
 
@@ -92,19 +135,13 @@ def test_register_candidate(
 def test_register_candidate_rejects_duplicate_email(
     client: TestClient,
 ) -> None:
-    registration_data = {
-        "full_name": "Career Saathi",
-        "email": "candidate@example.com",
-        "password": "StrongPassword123!",
-    }
-
     first_response = client.post(
         "/api/v1/auth/register",
-        json=registration_data,
+        json=REGISTRATION_DATA,
     )
     second_response = client.post(
         "/api/v1/auth/register",
-        json=registration_data,
+        json=REGISTRATION_DATA,
     )
 
     assert first_response.status_code == status.HTTP_201_CREATED
@@ -131,22 +168,20 @@ def test_register_candidate_rejects_invalid_data(
 
 def test_refresh_authentication_session(
     client: TestClient,
+    db_session: Session,
 ) -> None:
     registration_response = client.post(
         "/api/v1/auth/register",
-        json={
-            "full_name": "Career Saathi",
-            "email": "candidate@example.com",
-            "password": "StrongPassword123!",
-        },
+        json=REGISTRATION_DATA,
     )
+
+    assert registration_response.status_code == status.HTTP_201_CREATED
+
+    mark_candidate_as_verified(db_session)
 
     login_response = client.post(
         "/api/v1/auth/login",
-        json={
-            "email": "candidate@example.com",
-            "password": "StrongPassword123!",
-        },
+        json=LOGIN_DATA,
     )
 
     old_refresh_token = login_response.cookies.get(settings.refresh_cookie_name)
@@ -155,7 +190,6 @@ def test_refresh_authentication_session(
 
     new_refresh_token = refresh_response.cookies.get(settings.refresh_cookie_name)
 
-    assert registration_response.status_code == status.HTTP_201_CREATED
     assert login_response.status_code == status.HTTP_200_OK
     assert refresh_response.status_code == status.HTTP_200_OK
     assert old_refresh_token is not None
@@ -183,22 +217,20 @@ def test_refresh_rejects_missing_cookie(
 
 def test_logout_candidate(
     client: TestClient,
+    db_session: Session,
 ) -> None:
-    client.post(
+    registration_response = client.post(
         "/api/v1/auth/register",
-        json={
-            "full_name": "Career Saathi",
-            "email": "candidate@example.com",
-            "password": "StrongPassword123!",
-        },
+        json=REGISTRATION_DATA,
     )
+
+    assert registration_response.status_code == status.HTTP_201_CREATED
+
+    mark_candidate_as_verified(db_session)
 
     login_response = client.post(
         "/api/v1/auth/login",
-        json={
-            "email": "candidate@example.com",
-            "password": "StrongPassword123!",
-        },
+        json=LOGIN_DATA,
     )
 
     assert login_response.status_code == status.HTTP_200_OK
@@ -235,26 +267,25 @@ def test_logout_without_cookie_is_idempotent(
 
 def test_refresh_rejects_logged_out_session(
     client: TestClient,
+    db_session: Session,
 ) -> None:
-    client.post(
+    registration_response = client.post(
         "/api/v1/auth/register",
-        json={
-            "full_name": "Career Saathi",
-            "email": "candidate@example.com",
-            "password": "StrongPassword123!",
-        },
+        json=REGISTRATION_DATA,
     )
+
+    assert registration_response.status_code == status.HTTP_201_CREATED
+
+    mark_candidate_as_verified(db_session)
 
     login_response = client.post(
         "/api/v1/auth/login",
-        json={
-            "email": "candidate@example.com",
-            "password": "StrongPassword123!",
-        },
+        json=LOGIN_DATA,
     )
 
     old_refresh_token = login_response.cookies.get(settings.refresh_cookie_name)
 
+    assert login_response.status_code == status.HTTP_200_OK
     assert old_refresh_token is not None
 
     logout_response = client.post("/api/v1/auth/logout")

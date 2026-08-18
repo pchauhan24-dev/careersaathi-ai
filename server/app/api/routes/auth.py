@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     HTTPException,
     Request,
@@ -17,16 +18,22 @@ from app.core.cookies import (
 )
 from app.core.exceptions import (
     EmailAlreadyRegisteredError,
+    EmailNotVerifiedError,
     InvalidCredentialsError,
+    InvalidEmailVerificationTokenError,
     InvalidRefreshTokenError,
 )
 from app.core.security import create_access_token
 from app.db.session import get_db
 from app.schemas.auth import (
     AccessTokenData,
+    EmailVerificationRequest,
+    EmailVerificationResponse,
     LoginResponse,
     LogoutResponse,
+    MessageResponse,
     RegisterResponse,
+    ResendEmailVerificationRequest,
     UserLogin,
     UserRegister,
     UserResponse,
@@ -39,6 +46,12 @@ from app.services.auth_session_service import (
     create_refresh_session,
     revoke_refresh_session,
     rotate_refresh_session,
+)
+from app.services.email_service import send_verification_email
+from app.services.email_verification_service import (
+    create_email_verification_token,
+    request_email_verification,
+    verify_email_verification_token,
 )
 
 router = APIRouter(
@@ -55,6 +68,7 @@ router = APIRouter(
 )
 def register_candidate(
     registration_data: UserRegister,
+    background_tasks: BackgroundTasks,
     session: Annotated[Session, Depends(get_db)],
 ) -> RegisterResponse:
     try:
@@ -68,10 +82,83 @@ def register_candidate(
             detail=str(exc),
         ) from exc
 
+    _, raw_verification_token = create_email_verification_token(
+        session,
+        user.id,
+    )
+
+    background_tasks.add_task(
+        send_verification_email,
+        user.email,
+        user.full_name,
+        raw_verification_token,
+    )
+
     return RegisterResponse(
         success=True,
-        message="Account created successfully.",
+        message="Account created successfully. Please verify your email.",
         data=UserResponse.model_validate(user),
+    )
+
+
+@router.post(
+    "/verify-email",
+    response_model=EmailVerificationResponse,
+    summary="Verify a candidate email address",
+)
+def verify_candidate_email(
+    verification_data: EmailVerificationRequest,
+    session: Annotated[Session, Depends(get_db)],
+) -> EmailVerificationResponse:
+    try:
+        user = verify_email_verification_token(
+            session,
+            verification_data.token,
+        )
+    except InvalidEmailVerificationTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return EmailVerificationResponse(
+        success=True,
+        message="Email verified successfully.",
+        data=UserResponse.model_validate(user),
+    )
+
+
+@router.post(
+    "/resend-verification",
+    response_model=MessageResponse,
+    summary="Request another email verification message",
+)
+def resend_candidate_email_verification(
+    resend_data: ResendEmailVerificationRequest,
+    background_tasks: BackgroundTasks,
+    session: Annotated[Session, Depends(get_db)],
+) -> MessageResponse:
+    verification_request = request_email_verification(
+        session,
+        str(resend_data.email),
+    )
+
+    if verification_request is not None:
+        user, raw_verification_token = verification_request
+
+        background_tasks.add_task(
+            send_verification_email,
+            user.email,
+            user.full_name,
+            raw_verification_token,
+        )
+
+    return MessageResponse(
+        success=True,
+        message=(
+            "If an unverified account exists for this email, "
+            "a verification message will be sent."
+        ),
     )
 
 
@@ -95,6 +182,11 @@ def login_candidate(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(exc),
             headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    except EmailNotVerifiedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
         ) from exc
 
     access_token = create_access_token(str(user.id))

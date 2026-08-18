@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
     EmailAlreadyRegisteredError,
+    EmailNotVerifiedError,
     InvalidCredentialsError,
 )
 from app.core.security import hash_password, verify_password
@@ -64,5 +65,8 @@ def authenticate_user(
 
     if not password_is_valid or not user.is_active:
         raise InvalidCredentialsError
+
+    if not user.is_verified:
+        raise EmailNotVerifiedError
 
     return user

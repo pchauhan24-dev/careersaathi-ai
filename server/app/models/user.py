@@ -9,6 +9,9 @@ from app.models.mixins import TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.auth_session import AuthSession
+    from app.models.email_verification_token import (
+        EmailVerificationToken,
+    )
 
 
 class User(TimestampMixin, Base):
@@ -51,6 +54,12 @@ class User(TimestampMixin, Base):
     )
 
     auth_sessions: Mapped[list["AuthSession"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    email_verification_tokens: Mapped[list["EmailVerificationToken"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,

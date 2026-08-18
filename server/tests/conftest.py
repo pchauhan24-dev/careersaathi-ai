@@ -6,10 +6,22 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.models import User  # noqa: F401
+
+
+@pytest.fixture(autouse=True)
+def disable_real_email_delivery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        settings,
+        "email_delivery_enabled",
+        False,
+    )
 
 
 @pytest.fixture

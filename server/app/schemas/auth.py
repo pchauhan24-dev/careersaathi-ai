@@ -85,3 +85,30 @@ class LoginResponse(BaseModel):
 class LogoutResponse(BaseModel):
     success: bool
     message: str
+
+
+class EmailVerificationRequest(BaseModel):
+    token: str = Field(
+        min_length=32,
+        max_length=512,
+    )
+
+
+class ResendEmailVerificationRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: EmailStr) -> str:
+        return str(value).lower()
+
+
+class EmailVerificationResponse(BaseModel):
+    success: bool
+    message: str
+    data: UserResponse
+
+
+class MessageResponse(BaseModel):
+    success: bool
+    message: str

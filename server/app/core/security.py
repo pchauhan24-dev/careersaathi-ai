@@ -75,3 +75,15 @@ def hash_refresh_token(refresh_token: str) -> str:
     return hashlib.sha256(
         refresh_token.encode("utf-8"),
     ).hexdigest()
+
+
+def generate_email_verification_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def hash_email_verification_token(
+    verification_token: str,
+) -> str:
+    return hashlib.sha256(
+        verification_token.encode("utf-8"),
+    ).hexdigest()
