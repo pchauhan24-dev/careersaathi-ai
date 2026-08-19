@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.email_verification_token import (
         EmailVerificationToken,
     )
+    from app.models.social_account import SocialAccount
 
 
 class User(TimestampMixin, Base):
@@ -34,9 +35,9 @@ class User(TimestampMixin, Base):
         unique=True,
     )
 
-    password_hash: Mapped[str] = mapped_column(
+    password_hash: Mapped[str | None] = mapped_column(
         String(255),
-        nullable=False,
+        nullable=True,
     )
 
     is_active: Mapped[bool] = mapped_column(
@@ -60,6 +61,12 @@ class User(TimestampMixin, Base):
     )
 
     email_verification_tokens: Mapped[list["EmailVerificationToken"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    social_accounts: Mapped[list["SocialAccount"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,

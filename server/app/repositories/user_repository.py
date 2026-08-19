@@ -23,12 +23,14 @@ class UserRepository:
         *,
         full_name: str,
         email: str,
-        password_hash: str,
+        password_hash: str | None = None,
+        is_verified: bool = False,
     ) -> User:
         user = User(
             full_name=full_name,
             email=email,
             password_hash=password_hash,
+            is_verified=is_verified,
         )
 
         self.session.add(user)

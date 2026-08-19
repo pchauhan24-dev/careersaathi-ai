@@ -51,7 +51,7 @@ def authenticate_user(
     normalized_email = str(login_data.email).lower()
     user = repository.get_by_email(normalized_email)
 
-    if user is None:
+    if user is None or user.password_hash is None:
         verify_password(
             login_data.password,
             DUMMY_PASSWORD_HASH,

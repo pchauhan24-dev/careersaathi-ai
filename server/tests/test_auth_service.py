@@ -7,6 +7,7 @@ from app.core.exceptions import (
     InvalidCredentialsError,
 )
 from app.core.security import verify_password
+from app.repositories.user_repository import UserRepository
 from app.schemas.auth import UserLogin, UserRegister
 from app.services.auth_service import (
     authenticate_user,
@@ -119,5 +120,26 @@ def test_authenticate_user_rejects_unknown_email(
             UserLogin(
                 email="unknown@example.com",
                 password="StrongPassword123!",
+            ),
+        )
+
+
+def test_password_login_rejects_social_only_account(
+    db_session: Session,
+) -> None:
+    UserRepository(db_session).create(
+        full_name="Social Candidate",
+        email="social@example.com",
+        password_hash=None,
+        is_verified=True,
+    )
+    db_session.commit()
+
+    with pytest.raises(InvalidCredentialsError):
+        authenticate_user(
+            db_session,
+            UserLogin(
+                email="social@example.com",
+                password="AnyPassword123!",
             ),
         )
