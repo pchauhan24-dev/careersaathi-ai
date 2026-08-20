@@ -19,9 +19,13 @@ from app.core.cookies import (
 from app.core.exceptions import (
     EmailAlreadyRegisteredError,
     EmailNotVerifiedError,
+    GoogleAuthenticationConfigurationError,
     InvalidCredentialsError,
     InvalidEmailVerificationTokenError,
+    InvalidGoogleCredentialError,
     InvalidRefreshTokenError,
+    SocialAccountLinkingRequiredError,
+    SocialAuthenticationConflictError,
 )
 from app.core.security import create_access_token
 from app.db.session import get_db
@@ -29,6 +33,7 @@ from app.schemas.auth import (
     AccessTokenData,
     EmailVerificationRequest,
     EmailVerificationResponse,
+    GoogleLoginRequest,
     LoginResponse,
     LogoutResponse,
     MessageResponse,
@@ -53,6 +58,7 @@ from app.services.email_verification_service import (
     request_email_verification,
     verify_email_verification_token,
 )
+from app.services.google_auth_service import authenticate_google_user
 
 router = APIRouter(
     prefix="/auth",
@@ -204,6 +210,68 @@ def login_candidate(
     return LoginResponse(
         success=True,
         message="Login successful.",
+        data=AccessTokenData(
+            access_token=access_token,
+            expires_in=settings.access_token_expire_minutes * 60,
+            user=UserResponse.model_validate(user),
+        ),
+    )
+
+
+@router.post(
+    "/google",
+    response_model=LoginResponse,
+    summary="Log in or register using Google",
+)
+def login_candidate_with_google(
+    google_data: GoogleLoginRequest,
+    response: Response,
+    session: Annotated[Session, Depends(get_db)],
+) -> LoginResponse:
+    try:
+        user = authenticate_google_user(
+            session,
+            google_data.credential,
+        )
+    except GoogleAuthenticationConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except (
+        InvalidCredentialsError,
+        InvalidGoogleCredentialError,
+    ) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unable to authenticate with Google.",
+        ) from exc
+    except SocialAccountLinkingRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except SocialAuthenticationConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    access_token = create_access_token(str(user.id))
+
+    _, raw_refresh_token = create_refresh_session(
+        session,
+        user.id,
+    )
+
+    set_refresh_cookie(
+        response,
+        raw_refresh_token,
+    )
+
+    return LoginResponse(
+        success=True,
+        message="Google login successful.",
         data=AccessTokenData(
             access_token=access_token,
             expires_in=settings.access_token_expire_minutes * 60,

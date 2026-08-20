@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     api_v1_prefix: str = "/api/v1"
     client_url: str = "http://localhost:5173"
+    google_client_id: str | None = None
 
     jwt_secret_key: SecretStr
     jwt_algorithm: Literal["HS256"] = "HS256"

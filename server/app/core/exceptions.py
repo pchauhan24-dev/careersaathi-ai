@@ -26,3 +26,26 @@ class InvalidEmailVerificationTokenError(Exception):
 class EmailDeliveryError(Exception):
     def __init__(self) -> None:
         super().__init__("Unable to send the email verification message.")
+
+
+class GoogleAuthenticationConfigurationError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Google authentication is not configured.")
+
+
+class InvalidGoogleCredentialError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Invalid Google authentication credential.")
+
+
+class SocialAccountLinkingRequiredError(Exception):
+    def __init__(self) -> None:
+        super().__init__(
+            "An account already exists with this email. "
+            "Log in using the existing method before linking Google."
+        )
+
+
+class SocialAuthenticationConflictError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Unable to complete social authentication. Please try again.")

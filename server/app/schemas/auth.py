@@ -51,6 +51,13 @@ class UserLogin(BaseModel):
         return str(value).lower()
 
 
+class GoogleLoginRequest(BaseModel):
+    credential: str = Field(
+        min_length=100,
+        max_length=4096,
+    )
+
+
 class UserResponse(BaseModel):
     id: UUID
     full_name: str
