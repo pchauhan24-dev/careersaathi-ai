@@ -38,11 +38,29 @@ class InvalidGoogleCredentialError(Exception):
         super().__init__("Invalid Google authentication credential.")
 
 
-class SocialAccountLinkingRequiredError(Exception):
+class GitHubAuthenticationConfigurationError(Exception):
     def __init__(self) -> None:
+        super().__init__("GitHub authentication is not configured.")
+
+
+class InvalidGitHubAuthorizationError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Invalid or expired GitHub authorization.")
+
+
+class GitHubAuthenticationUnavailableError(Exception):
+    def __init__(self) -> None:
+        super().__init__("GitHub authentication is temporarily unavailable.")
+
+
+class SocialAccountLinkingRequiredError(Exception):
+    def __init__(
+        self,
+        provider: str = "Google",
+    ) -> None:
         super().__init__(
             "An account already exists with this email. "
-            "Log in using the existing method before linking Google."
+            f"Log in using the existing method before linking {provider}."
         )
 
 

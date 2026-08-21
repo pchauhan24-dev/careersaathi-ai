@@ -17,11 +17,13 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 GOOGLE_PROVIDER = "google"
+GITHUB_PROVIDER = "github"
 LINKEDIN_PROVIDER = "linkedin"
 
 SUPPORTED_SOCIAL_PROVIDERS = frozenset(
     {
         GOOGLE_PROVIDER,
+        GITHUB_PROVIDER,
         LINKEDIN_PROVIDER,
     }
 )
@@ -32,7 +34,7 @@ class SocialAccount(TimestampMixin, Base):
 
     __table_args__ = (
         CheckConstraint(
-            "provider IN ('google', 'linkedin')",
+            "provider IN ('google', 'github', 'linkedin')",
             name="ck_social_accounts_provider",
         ),
         UniqueConstraint(

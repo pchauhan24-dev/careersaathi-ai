@@ -6,24 +6,27 @@ from app.core.exceptions import (
     SocialAccountLinkingRequiredError,
     SocialAuthenticationConflictError,
 )
-from app.models.social_account import GOOGLE_PROVIDER
+from app.models.social_account import GITHUB_PROVIDER
 from app.models.user import User
 from app.repositories.social_account_repository import (
     SocialAccountRepository,
 )
 from app.repositories.user_repository import UserRepository
-from app.services.google_identity_service import (
-    GoogleIdentity,
-    verify_google_credential,
+from app.services.github_identity_service import (
+    GitHubIdentity,
+    retrieve_github_identity,
+)
+from app.services.github_oauth_service import (
+    exchange_github_authorization_code,
 )
 
 
-def get_returning_google_user(
+def get_returning_github_user(
     social_account_repository: SocialAccountRepository,
-    identity: GoogleIdentity,
+    identity: GitHubIdentity,
 ) -> User | None:
     social_account = social_account_repository.get_by_provider_subject(
-        GOOGLE_PROVIDER,
+        GITHUB_PROVIDER,
         identity.subject,
     )
 
@@ -42,16 +45,22 @@ def get_returning_google_user(
     return user
 
 
-def authenticate_google_user(
+def authenticate_github_user(
     session: Session,
-    credential: str,
+    authorization_code: str,
+    code_verifier: str,
 ) -> User:
-    identity = verify_google_credential(credential)
+    github_access_token = exchange_github_authorization_code(
+        authorization_code,
+        code_verifier,
+    )
+
+    identity = retrieve_github_identity(github_access_token)
 
     user_repository = UserRepository(session)
     social_account_repository = SocialAccountRepository(session)
 
-    returning_user = get_returning_google_user(
+    returning_user = get_returning_github_user(
         social_account_repository,
         identity,
     )
@@ -62,7 +71,7 @@ def authenticate_google_user(
     existing_user = user_repository.get_by_email(identity.email)
 
     if existing_user is not None:
-        raise SocialAccountLinkingRequiredError("Google")
+        raise SocialAccountLinkingRequiredError("GitHub")
 
     user = user_repository.create(
         full_name=identity.full_name,
@@ -76,7 +85,7 @@ def authenticate_google_user(
 
         social_account_repository.create(
             user_id=user.id,
-            provider=GOOGLE_PROVIDER,
+            provider=GITHUB_PROVIDER,
             provider_subject=identity.subject,
             provider_email=identity.email,
         )

@@ -32,8 +32,8 @@ def test_create_and_find_social_account(
 
     social_account = repository.create(
         user_id=user.id,
-        provider="Google",
-        provider_subject="google-user-123",
+        provider="GitHub",
+        provider_subject="github-user-123",
         provider_email="Candidate@Example.com",
     )
 
@@ -41,12 +41,12 @@ def test_create_and_find_social_account(
     db_session.refresh(social_account)
 
     stored_by_subject = repository.get_by_provider_subject(
-        "google",
-        "google-user-123",
+        "github",
+        "github-user-123",
     )
     stored_by_user = repository.get_by_user_and_provider(
         user.id,
-        "GOOGLE",
+        "GITHUB",
     )
 
     assert stored_by_subject is not None
@@ -54,7 +54,7 @@ def test_create_and_find_social_account(
     assert stored_by_subject.id == social_account.id
     assert stored_by_user.id == social_account.id
     assert social_account.user_id == user.id
-    assert social_account.provider == "google"
+    assert social_account.provider == "github"
     assert social_account.provider_email == "candidate@example.com"
     assert social_account.user.id == user.id
 
@@ -73,8 +73,14 @@ def test_user_can_connect_supported_social_providers(
     )
     repository.create(
         user_id=user.id,
+        provider="github",
+        provider_subject="github-user-456",
+        provider_email=user.email,
+    )
+    repository.create(
+        user_id=user.id,
         provider="linkedin",
-        provider_subject="linkedin-user-456",
+        provider_subject="linkedin-user-789",
         provider_email=user.email,
     )
 
@@ -82,9 +88,10 @@ def test_user_can_connect_supported_social_providers(
 
     social_accounts = repository.list_by_user(user.id)
 
-    assert len(social_accounts) == 2
+    assert len(social_accounts) == 3
     assert {social_account.provider for social_account in social_accounts} == {
         "google",
+        "github",
         "linkedin",
     }
 

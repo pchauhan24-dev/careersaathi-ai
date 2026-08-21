@@ -14,7 +14,12 @@ class Settings(BaseSettings):
     environment: str = "development"
     api_v1_prefix: str = "/api/v1"
     client_url: str = "http://localhost:5173"
+
     google_client_id: str | None = None
+
+    github_client_id: str | None = None
+    github_client_secret: SecretStr | None = None
+    github_redirect_uri: str = "http://localhost:8000/api/v1/auth/github/callback"
 
     jwt_secret_key: SecretStr
     jwt_algorithm: Literal["HS256"] = "HS256"
