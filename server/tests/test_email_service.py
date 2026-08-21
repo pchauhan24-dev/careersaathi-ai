@@ -8,6 +8,9 @@ from app.core.config import settings
 from app.core.exceptions import EmailDeliveryError
 from app.services.email_service import (
     build_email_verification_url,
+    build_password_reset_email,
+    build_password_reset_url,
+    send_password_reset_email,
     send_verification_email,
 )
 
@@ -161,3 +164,67 @@ def test_missing_smtp_credentials_is_rejected(
             "Career Saathi",
             "test-verification-token",
         )
+
+
+def test_build_password_reset_url() -> None:
+    url = build_password_reset_url("test-reset-token")
+
+    assert url == (f"{settings.client_url}/reset-password?token=test-reset-token")
+
+
+def test_build_password_reset_email() -> None:
+    message = build_password_reset_email(
+        "candidate@example.com",
+        "Career Saathi",
+        "test-reset-token",
+    )
+
+    message_content = message.as_string()
+
+    assert message["To"] == "candidate@example.com"
+    assert message["Subject"] == ("Reset your CareerSaathi AI password")
+    assert "test-reset-token" in message_content
+    assert str(settings.password_reset_token_expire_minutes) in (message_content)
+
+
+def test_send_password_reset_email(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeSMTP.instances.clear()
+
+    monkeypatch.setattr(
+        settings,
+        "email_delivery_enabled",
+        True,
+    )
+    monkeypatch.setattr(
+        settings,
+        "smtp_username",
+        SecretStr("test-smtp-user"),
+    )
+    monkeypatch.setattr(
+        settings,
+        "smtp_password",
+        SecretStr("test-smtp-password"),
+    )
+    monkeypatch.setattr(
+        "app.services.email_service.smtplib.SMTP",
+        FakeSMTP,
+    )
+
+    send_password_reset_email(
+        "candidate@example.com",
+        "Career Saathi",
+        "test-reset-token",
+    )
+
+    smtp = FakeSMTP.instances[0]
+
+    assert smtp.started_tls is True
+    assert smtp.login_credentials == (
+        "test-smtp-user",
+        "test-smtp-password",
+    )
+    assert smtp.sent_message is not None
+    assert smtp.sent_message["To"] == "candidate@example.com"
+    assert smtp.sent_message["Subject"] == ("Reset your CareerSaathi AI password")

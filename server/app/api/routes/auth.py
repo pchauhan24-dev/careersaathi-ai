@@ -32,6 +32,7 @@ from app.core.exceptions import (
     InvalidEmailVerificationTokenError,
     InvalidGitHubAuthorizationError,
     InvalidGoogleCredentialError,
+    InvalidPasswordResetTokenError,
     InvalidRefreshTokenError,
     SocialAccountLinkingRequiredError,
     SocialAuthenticationConflictError,
@@ -42,12 +43,14 @@ from app.schemas.auth import (
     AccessTokenData,
     EmailVerificationRequest,
     EmailVerificationResponse,
+    ForgotPasswordRequest,
     GoogleLoginRequest,
     LoginResponse,
     LogoutResponse,
     MessageResponse,
     RegisterResponse,
     ResendEmailVerificationRequest,
+    ResetPasswordRequest,
     UserLogin,
     UserRegister,
     UserResponse,
@@ -61,7 +64,10 @@ from app.services.auth_session_service import (
     revoke_refresh_session,
     rotate_refresh_session,
 )
-from app.services.email_service import send_verification_email
+from app.services.email_service import (
+    send_password_reset_email,
+    send_verification_email,
+)
 from app.services.email_verification_service import (
     create_email_verification_token,
     request_email_verification,
@@ -72,6 +78,10 @@ from app.services.github_oauth_service import (
     create_github_authorization_request,
 )
 from app.services.google_auth_service import authenticate_google_user
+from app.services.password_reset_service import (
+    request_password_reset,
+    reset_user_password,
+)
 
 router = APIRouter(
     prefix="/auth",
@@ -129,7 +139,7 @@ def register_candidate(
 
     return RegisterResponse(
         success=True,
-        message=("Account created successfully. Please verify your email."),
+        message="Account created successfully. Please verify your email.",
         data=UserResponse.model_validate(user),
     )
 
@@ -192,6 +202,70 @@ def resend_candidate_email_verification(
             "If an unverified account exists for this email, "
             "a verification message will be sent."
         ),
+    )
+
+
+@router.post(
+    "/forgot-password",
+    response_model=MessageResponse,
+    summary="Request a password reset message",
+)
+def forgot_candidate_password(
+    forgot_password_data: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    session: Annotated[Session, Depends(get_db)],
+) -> MessageResponse:
+    reset_request = request_password_reset(
+        session,
+        str(forgot_password_data.email),
+    )
+
+    if reset_request is not None:
+        user, raw_reset_token = reset_request
+
+        background_tasks.add_task(
+            send_password_reset_email,
+            user.email,
+            user.full_name,
+            raw_reset_token,
+        )
+
+    return MessageResponse(
+        success=True,
+        message=(
+            "If an active account exists for this email, "
+            "a password reset message will be sent."
+        ),
+    )
+
+
+@router.post(
+    "/reset-password",
+    response_model=MessageResponse,
+    summary="Reset a candidate password",
+)
+def reset_candidate_password(
+    reset_password_data: ResetPasswordRequest,
+    response: Response,
+    session: Annotated[Session, Depends(get_db)],
+) -> MessageResponse:
+    try:
+        reset_user_password(
+            session,
+            reset_password_data.token,
+            reset_password_data.new_password,
+        )
+    except InvalidPasswordResetTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    clear_refresh_cookie(response)
+
+    return MessageResponse(
+        success=True,
+        message="Password reset successfully. Please log in again.",
     )
 
 

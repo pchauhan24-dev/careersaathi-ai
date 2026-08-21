@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.email_verification_token import (
         EmailVerificationToken,
     )
+    from app.models.password_reset_token import PasswordResetToken
     from app.models.social_account import SocialAccount
 
 
@@ -67,6 +68,12 @@ class User(TimestampMixin, Base):
     )
 
     social_accounts: Mapped[list["SocialAccount"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    password_reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,

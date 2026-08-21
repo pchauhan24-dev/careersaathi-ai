@@ -25,7 +25,7 @@ class InvalidEmailVerificationTokenError(Exception):
 
 class EmailDeliveryError(Exception):
     def __init__(self) -> None:
-        super().__init__("Unable to send the email verification message.")
+        super().__init__("Unable to send the email message.")
 
 
 class GoogleAuthenticationConfigurationError(Exception):
@@ -67,3 +67,8 @@ class SocialAccountLinkingRequiredError(Exception):
 class SocialAuthenticationConflictError(Exception):
     def __init__(self) -> None:
         super().__init__("Unable to complete social authentication. Please try again.")
+
+
+class InvalidPasswordResetTokenError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Invalid or expired password reset token.")

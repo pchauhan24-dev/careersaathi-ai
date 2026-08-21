@@ -68,3 +68,20 @@ class AuthSessionRepository:
             auth_session.revoked_at = revoked_at
 
         return len(active_sessions)
+
+    def revoke_all_for_user(
+        self,
+        user_id: UUID,
+        revoked_at: datetime,
+    ) -> int:
+        statement = select(AuthSession).where(
+            AuthSession.user_id == user_id,
+            AuthSession.revoked_at.is_(None),
+        )
+
+        active_sessions = list(self.session.scalars(statement))
+
+        for auth_session in active_sessions:
+            auth_session.revoked_at = revoked_at
+
+        return len(active_sessions)

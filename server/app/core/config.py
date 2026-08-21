@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
 
     email_verification_token_expire_hours: int = 24
+    password_reset_token_expire_minutes: int = 30
     email_delivery_enabled: bool = False
     smtp_host: str = "smtp-relay.brevo.com"
     smtp_port: int = 587

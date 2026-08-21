@@ -17,6 +17,14 @@ def build_email_verification_url(
     return f"{settings.client_url.rstrip('/')}/verify-email?{query_string}"
 
 
+def build_password_reset_url(
+    raw_reset_token: str,
+) -> str:
+    query_string = urlencode({"token": raw_reset_token})
+
+    return f"{settings.client_url.rstrip('/')}/reset-password?{query_string}"
+
+
 def build_verification_email(
     recipient_email: str,
     recipient_name: str,
@@ -110,10 +118,103 @@ CareerSaathi AI
     return message
 
 
-def send_verification_email(
+def build_password_reset_email(
     recipient_email: str,
     recipient_name: str,
-    raw_verification_token: str,
+    raw_reset_token: str,
+) -> EmailMessage:
+    reset_url = build_password_reset_url(raw_reset_token)
+
+    safe_recipient_name = escape(recipient_name)
+    safe_reset_url = escape(
+        reset_url,
+        quote=True,
+    )
+
+    message = EmailMessage()
+
+    message["Subject"] = "Reset your CareerSaathi AI password"
+    message["From"] = formataddr(
+        (
+            settings.email_from_name,
+            settings.email_from_address,
+        )
+    )
+    message["To"] = recipient_email
+
+    message.set_content(
+        f"""Hello {recipient_name},
+
+We received a request to reset your CareerSaathi AI password.
+
+Open this link to choose a new password:
+
+{reset_url}
+
+This password reset link expires in {
+            settings.password_reset_token_expire_minutes
+        } minutes and can only be used once.
+
+If you did not request a password reset, you can safely ignore this email.
+Your password has not been changed.
+
+CareerSaathi AI
+"""
+    )
+
+    message.add_alternative(
+        f"""\
+<!doctype html>
+<html lang="en">
+  <body style="font-family: Arial, sans-serif; color: #172033;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 32px;">
+      <h1 style="color: #2563eb;">CareerSaathi AI</h1>
+
+      <p>Hello {safe_recipient_name},</p>
+
+      <p>
+        We received a request to reset your
+        CareerSaathi AI password.
+      </p>
+
+      <p style="margin: 32px 0;">
+        <a
+          href="{safe_reset_url}"
+          style="
+            background: #2563eb;
+            color: #ffffff;
+            padding: 12px 20px;
+            text-decoration: none;
+            border-radius: 8px;
+          "
+        >
+          Reset password
+        </a>
+      </p>
+
+      <p>
+        This link expires in
+        {settings.password_reset_token_expire_minutes}
+        minutes and can only be used once.
+      </p>
+
+      <p>
+        If you did not request a password reset,
+        you can safely ignore this email. Your
+        password has not been changed.
+      </p>
+    </div>
+  </body>
+</html>
+""",
+        subtype="html",
+    )
+
+    return message
+
+
+def send_email_message(
+    message: EmailMessage,
 ) -> None:
     if not settings.email_delivery_enabled:
         return
@@ -126,12 +227,6 @@ def send_verification_email(
 
     if not smtp_username or not smtp_password:
         raise EmailDeliveryError
-
-    message = build_verification_email(
-        recipient_email,
-        recipient_name,
-        raw_verification_token,
-    )
 
     tls_context = ssl.create_default_context()
 
@@ -154,3 +249,31 @@ def send_verification_email(
             smtp.send_message(message)
     except (OSError, smtplib.SMTPException) as exc:
         raise EmailDeliveryError from exc
+
+
+def send_verification_email(
+    recipient_email: str,
+    recipient_name: str,
+    raw_verification_token: str,
+) -> None:
+    message = build_verification_email(
+        recipient_email,
+        recipient_name,
+        raw_verification_token,
+    )
+
+    send_email_message(message)
+
+
+def send_password_reset_email(
+    recipient_email: str,
+    recipient_name: str,
+    raw_reset_token: str,
+) -> None:
+    message = build_password_reset_email(
+        recipient_email,
+        recipient_name,
+        raw_reset_token,
+    )
+
+    send_email_message(message)
