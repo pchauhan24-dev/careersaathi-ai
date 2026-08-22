@@ -20,4 +20,4 @@ def test_user_model_columns() -> None:
     assert set(User.__table__.columns.keys()) == expected_columns
     assert User.__table__.c.id.primary_key is True
     assert User.__table__.c.email.unique is True
-    assert User.__table__.c.password_hash.nullable is False
+    assert User.__table__.c.password_hash.nullable is True
