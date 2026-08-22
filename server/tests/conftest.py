@@ -24,6 +24,17 @@ def disable_real_email_delivery(
     )
 
 
+@pytest.fixture(autouse=True)
+def disable_rate_limiting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        settings,
+        "rate_limit_enabled",
+        False,
+    )
+
+
 @pytest.fixture
 def db_session() -> Generator[Session, None, None]:
     test_engine = create_engine(

@@ -37,6 +37,7 @@ from app.core.exceptions import (
     SocialAccountLinkingRequiredError,
     SocialAuthenticationConflictError,
 )
+from app.core.rate_limit import create_rate_limit_dependency
 from app.core.security import create_access_token
 from app.db.session import get_db
 from app.schemas.auth import (
@@ -88,6 +89,51 @@ router = APIRouter(
     tags=["Authentication"],
 )
 
+REGISTER_RATE_LIMIT = create_rate_limit_dependency(
+    "5/hour",
+    "auth-register",
+)
+VERIFY_EMAIL_RATE_LIMIT = create_rate_limit_dependency(
+    "10/minute",
+    "auth-verify-email",
+)
+RESEND_VERIFICATION_RATE_LIMIT = create_rate_limit_dependency(
+    "3/minute",
+    "auth-resend-verification",
+)
+FORGOT_PASSWORD_RATE_LIMIT = create_rate_limit_dependency(
+    "3/minute",
+    "auth-forgot-password",
+)
+RESET_PASSWORD_RATE_LIMIT = create_rate_limit_dependency(
+    "5/minute",
+    "auth-reset-password",
+)
+LOGIN_RATE_LIMIT = create_rate_limit_dependency(
+    "10/minute",
+    "auth-login",
+)
+GOOGLE_LOGIN_RATE_LIMIT = create_rate_limit_dependency(
+    "10/minute",
+    "auth-google",
+)
+GITHUB_AUTHORIZE_RATE_LIMIT = create_rate_limit_dependency(
+    "10/minute",
+    "auth-github-authorize",
+)
+GITHUB_CALLBACK_RATE_LIMIT = create_rate_limit_dependency(
+    "20/minute",
+    "auth-github-callback",
+)
+REFRESH_RATE_LIMIT = create_rate_limit_dependency(
+    "30/minute",
+    "auth-refresh",
+)
+LOGOUT_RATE_LIMIT = create_rate_limit_dependency(
+    "30/minute",
+    "auth-logout",
+)
+
 
 def create_github_error_response(
     status_code: int,
@@ -107,6 +153,7 @@ def create_github_error_response(
     "/register",
     response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(REGISTER_RATE_LIMIT)],
     summary="Register a new candidate",
 )
 def register_candidate(
@@ -147,6 +194,7 @@ def register_candidate(
 @router.post(
     "/verify-email",
     response_model=EmailVerificationResponse,
+    dependencies=[Depends(VERIFY_EMAIL_RATE_LIMIT)],
     summary="Verify a candidate email address",
 )
 def verify_candidate_email(
@@ -174,6 +222,7 @@ def verify_candidate_email(
 @router.post(
     "/resend-verification",
     response_model=MessageResponse,
+    dependencies=[Depends(RESEND_VERIFICATION_RATE_LIMIT)],
     summary="Request another email verification message",
 )
 def resend_candidate_email_verification(
@@ -208,6 +257,7 @@ def resend_candidate_email_verification(
 @router.post(
     "/forgot-password",
     response_model=MessageResponse,
+    dependencies=[Depends(FORGOT_PASSWORD_RATE_LIMIT)],
     summary="Request a password reset message",
 )
 def forgot_candidate_password(
@@ -242,6 +292,7 @@ def forgot_candidate_password(
 @router.post(
     "/reset-password",
     response_model=MessageResponse,
+    dependencies=[Depends(RESET_PASSWORD_RATE_LIMIT)],
     summary="Reset a candidate password",
 )
 def reset_candidate_password(
@@ -272,6 +323,7 @@ def reset_candidate_password(
 @router.post(
     "/login",
     response_model=LoginResponse,
+    dependencies=[Depends(LOGIN_RATE_LIMIT)],
     summary="Log in a candidate",
 )
 def login_candidate(
@@ -313,7 +365,7 @@ def login_candidate(
         message="Login successful.",
         data=AccessTokenData(
             access_token=access_token,
-            expires_in=settings.access_token_expire_minutes * 60,
+            expires_in=(settings.access_token_expire_minutes * 60),
             user=UserResponse.model_validate(user),
         ),
     )
@@ -322,6 +374,7 @@ def login_candidate(
 @router.post(
     "/google",
     response_model=LoginResponse,
+    dependencies=[Depends(GOOGLE_LOGIN_RATE_LIMIT)],
     summary="Log in or register using Google",
 )
 def login_candidate_with_google(
@@ -375,7 +428,7 @@ def login_candidate_with_google(
         message="Google login successful.",
         data=AccessTokenData(
             access_token=access_token,
-            expires_in=settings.access_token_expire_minutes * 60,
+            expires_in=(settings.access_token_expire_minutes * 60),
             user=UserResponse.model_validate(user),
         ),
     )
@@ -383,6 +436,7 @@ def login_candidate_with_google(
 
 @router.get(
     "/github/authorize",
+    dependencies=[Depends(GITHUB_AUTHORIZE_RATE_LIMIT)],
     summary="Begin GitHub authentication",
 )
 def begin_github_authentication() -> RedirectResponse:
@@ -410,6 +464,7 @@ def begin_github_authentication() -> RedirectResponse:
 
 @router.get(
     "/github/callback",
+    dependencies=[Depends(GITHUB_CALLBACK_RATE_LIMIT)],
     summary="Complete GitHub authentication",
 )
 def complete_github_authentication(
@@ -512,6 +567,7 @@ def complete_github_authentication(
 @router.post(
     "/refresh",
     response_model=LoginResponse,
+    dependencies=[Depends(REFRESH_RATE_LIMIT)],
     summary="Refresh the authentication session",
 )
 def refresh_authentication_session(
@@ -550,7 +606,7 @@ def refresh_authentication_session(
         message="Session refreshed successfully.",
         data=AccessTokenData(
             access_token=access_token,
-            expires_in=settings.access_token_expire_minutes * 60,
+            expires_in=(settings.access_token_expire_minutes * 60),
             user=UserResponse.model_validate(user),
         ),
     )
@@ -559,6 +615,7 @@ def refresh_authentication_session(
 @router.post(
     "/logout",
     response_model=LogoutResponse,
+    dependencies=[Depends(LOGOUT_RATE_LIMIT)],
     summary="Log out the current candidate",
 )
 def logout_candidate(
