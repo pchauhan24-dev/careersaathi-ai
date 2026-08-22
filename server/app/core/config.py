@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     client_url: str = "http://localhost:5173"
 
+    api_docs_enabled: bool = True
+    trusted_hosts: str = "localhost,127.0.0.1,testserver"
+
     rate_limit_enabled: bool = True
     rate_limit_storage_uri: SecretStr = SecretStr("memory://")
 
@@ -95,6 +98,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    @property
+    def trusted_host_list(self) -> list[str]:
+        return [host.strip() for host in self.trusted_hosts.split(",") if host.strip()]
+
     @model_validator(mode="after")
     def validate_security_configuration(self) -> Self:
         jwt_secret = self.jwt_secret_key.get_secret_value()
@@ -106,6 +113,15 @@ class Settings(BaseSettings):
 
         if client_url.scheme not in {"http", "https"} or not client_url.netloc:
             raise ValueError("CLIENT_URL must be a valid HTTP or HTTPS URL.")
+
+        trusted_hosts = self.trusted_host_list
+
+        if not trusted_hosts:
+            raise ValueError("TRUSTED_HOSTS must contain at least one host.")
+
+        for trusted_host in trusted_hosts:
+            if "://" in trusted_host or "/" in trusted_host or " " in trusted_host:
+                raise ValueError("TRUSTED_HOSTS must contain hostnames only.")
 
         rate_limit_storage_uri = self.rate_limit_storage_uri.get_secret_value().strip()
         rate_limit_storage = urlparse(rate_limit_storage_uri)
@@ -176,6 +192,14 @@ class Settings(BaseSettings):
 
             if not self.refresh_cookie_secure:
                 raise ValueError("Production refresh cookies must be secure.")
+
+            if self.api_docs_enabled:
+                raise ValueError("API documentation must be disabled in production.")
+
+            if any("*" in host for host in trusted_hosts):
+                raise ValueError(
+                    "Wildcard trusted hosts are not allowed in production."
+                )
 
             if not self.rate_limit_enabled:
                 raise ValueError("Rate limiting must be enabled in production.")

@@ -30,6 +30,12 @@ def test_settings_accept_secure_development_configuration() -> None:
     assert application_settings.environment == "development"
     assert application_settings.refresh_cookie_secure is False
     assert application_settings.refresh_cookie_samesite == "lax"
+    assert application_settings.api_docs_enabled is True
+    assert application_settings.trusted_host_list == [
+        "localhost",
+        "127.0.0.1",
+        "testserver",
+    ]
     assert application_settings.rate_limit_enabled is True
     assert application_settings.rate_limit_storage_uri.get_secret_value() == "memory://"
 
@@ -109,6 +115,8 @@ def test_production_settings_require_https_and_secure_cookie() -> None:
             environment="production",
             client_url="http://example.com",
             refresh_cookie_secure=True,
+            api_docs_enabled=False,
+            trusted_hosts="example.com",
             rate_limit_storage_uri=production_rate_limit_storage,
         )
 
@@ -120,6 +128,8 @@ def test_production_settings_require_https_and_secure_cookie() -> None:
             environment="production",
             client_url="https://example.com",
             refresh_cookie_secure=False,
+            api_docs_enabled=False,
+            trusted_hosts="example.com",
             rate_limit_storage_uri=production_rate_limit_storage,
         )
 
@@ -133,6 +143,8 @@ def test_production_settings_require_rate_limiting() -> None:
             environment="production",
             client_url="https://example.com",
             refresh_cookie_secure=True,
+            api_docs_enabled=False,
+            trusted_hosts="example.com",
             rate_limit_enabled=False,
             rate_limit_storage_uri=SecretStr("rediss://redis.example.com:6379/0"),
         )
@@ -141,12 +153,14 @@ def test_production_settings_require_rate_limiting() -> None:
 def test_production_settings_reject_memory_rate_limit_storage() -> None:
     with pytest.raises(
         ValidationError,
-        match="Production rate limiting requires external Redis storage",
+        match=("Production rate limiting requires external Redis storage"),
     ):
         create_settings(
             environment="production",
             client_url="https://example.com",
             refresh_cookie_secure=True,
+            api_docs_enabled=False,
+            trusted_hosts="example.com",
             rate_limit_storage_uri=SecretStr("memory://"),
         )
 
@@ -156,9 +170,61 @@ def test_settings_accept_secure_production_configuration() -> None:
         environment="production",
         client_url="https://careersaathi.example.com",
         refresh_cookie_secure=True,
+        api_docs_enabled=False,
+        trusted_hosts="careersaathi.example.com",
         rate_limit_storage_uri=SecretStr("rediss://redis.example.com:6379/0"),
     )
 
     assert application_settings.environment == "production"
     assert application_settings.refresh_cookie_secure is True
+    assert application_settings.api_docs_enabled is False
     assert application_settings.rate_limit_enabled is True
+    assert application_settings.trusted_host_list == ["careersaathi.example.com"]
+
+
+def test_settings_reject_invalid_trusted_hosts() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="TRUSTED_HOSTS must contain at least one host",
+    ):
+        create_settings(
+            trusted_hosts=" , ",
+        )
+
+    with pytest.raises(
+        ValidationError,
+        match="TRUSTED_HOSTS must contain hostnames only",
+    ):
+        create_settings(
+            trusted_hosts="https://example.com",
+        )
+
+
+def test_production_settings_require_disabled_api_docs() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="API documentation must be disabled in production",
+    ):
+        create_settings(
+            environment="production",
+            client_url="https://example.com",
+            refresh_cookie_secure=True,
+            api_docs_enabled=True,
+            trusted_hosts="example.com",
+            rate_limit_storage_uri=SecretStr("rediss://redis.example.com:6379/0"),
+        )
+
+
+def test_production_settings_reject_wildcard_trusted_hosts() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="Wildcard trusted hosts are not allowed in production",
+    ):
+        create_settings(
+            environment="production",
+            client_url="https://example.com",
+            refresh_cookie_secure=True,
+            api_docs_enabled=False,
+            trusted_hosts="*",
+            rate_limit_storage_uri=SecretStr("rediss://redis.example.com:6379/0"),
+        )
